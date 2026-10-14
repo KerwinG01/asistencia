@@ -50,7 +50,7 @@
 
 <script>
 // ⬇️ Pega aquí la URL de tu implementación (termina en /exec)
-const API = 'PEGA_AQUI_LA_URL_DE_APPS_SCRIPT/exec';
+const API = 'https://script.google.com/macros/s/AKfycbzcYaKKnvMjd1h6xl321GEAxSfjjfAjnwL-0yri09BakUkko6b0UoIG69xiyabYD2ee/exec';
 
 const $ = id => document.getElementById(id);
 const msg = (t, cls) => { $('msg').textContent = t; $('msg').className = cls || ''; };
