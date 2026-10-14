@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Registro de asistencia</title>
+<style>
+  :root { --bg:#f4f6fa; --card:#fff; --txt:#1c2330; --mut:#667085; --pri:#2b59c3; --bd:#d0d5dd; --ok:#067647; --err:#b42318; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12161d; --card:#1c222c; --txt:#e8ecf3; --mut:#9aa4b5; --pri:#6b95f5; --bd:#3a4352; --ok:#4ade80; --err:#f87171; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--txt);
+         min-height:100vh; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .card { background:var(--card); width:100%; max-width:420px; padding:24px; border-radius:14px; border:1px solid var(--bd); }
+  h1 { font-size:1.25rem; margin:0 0 4px; }
+  p.sub { color:var(--mut); margin:0 0 18px; font-size:.9rem; }
+  label { display:block; font-size:.85rem; margin:12px 0 4px; color:var(--mut); }
+  input, select { width:100%; padding:11px; font-size:1rem; border:1px solid var(--bd); border-radius:8px;
+                  background:var(--card); color:var(--txt); }
+  button { width:100%; margin-top:20px; padding:12px; font-size:1rem; border:0; border-radius:8px;
+           background:var(--pri); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  #msg { margin-top:14px; font-size:.95rem; min-height:1.2em; }
+  .ok { color:var(--ok); } .err { color:var(--err); }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Registro de asistencia</h1>
+  <p class="sub" id="estado">Consultando sesiones abiertas…</p>
+
+  <div id="formulario" hidden>
+    <label for="grupo">Semestre y grupo</label>
+    <select id="grupo"></select>
+
+    <label for="nombre">Nombre</label>
+    <input id="nombre" autocomplete="given-name" maxlength="60">
+
+    <label for="apellido">Apellido</label>
+    <input id="apellido" autocomplete="family-name" maxlength="60">
+
+    <label for="cedula">Cédula</label>
+    <input id="cedula" inputmode="numeric" maxlength="12">
+
+    <button id="enviar">Registrar asistencia</button>
+  </div>
+  <div id="msg"></div>
+</div>
+
+<script>
+// ⬇️ Pega aquí la URL de tu implementación (termina en /exec)
+const API = 'PEGA_AQUI_LA_URL_DE_APPS_SCRIPT/exec';
+
+const $ = id => document.getElementById(id);
+const msg = (t, cls) => { $('msg').textContent = t; $('msg').className = cls || ''; };
+
+// ID único por dispositivo/navegador
+function deviceId() {
+  try {
+    let id = localStorage.getItem('device_id');
+    if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()); localStorage.setItem('device_id', id); }
+    return id;
+  } catch (e) { return 'sin-storage-' + navigator.userAgent.length + screen.width + screen.height; }
+}
+const marca = sesion => 'registrado_' + sesion;
+const yaRegistrado = sesion => { try { return !!localStorage.getItem(marca(sesion)); } catch (e) { return false; } };
+
+let abiertas = [];
+
+async function cargar() {
+  try {
+    const r = await fetch(API);
+    const d = await r.json();
+    abiertas = (d.abiertas || []).filter(a => !yaRegistrado(a.sesion));
+    const todas = d.abiertas || [];
+    if (!todas.length) { $('estado').textContent = 'No hay ninguna sesión abierta en este momento.'; return; }
+    if (!abiertas.length) { $('estado').textContent = ''; msg('✔ Ya registraste tu asistencia desde este dispositivo.', 'ok'); return; }
+    $('estado').textContent = 'Sesión abierta. Completa tus datos.';
+    $('grupo').innerHTML = abiertas.map(a => `<option value="${a.hoja}">${a.hoja.replace('Asistencia ', '')}</option>`).join('');
+    $('formulario').hidden = false;
+  } catch (e) {
+    $('estado').textContent = 'No se pudo conectar. Intenta de nuevo.';
+  }
+}
+
+$('enviar').addEventListener('click', async () => {
+  const hoja = $('grupo').value;
+  const datos = {
+    hoja, device: deviceId(),
+    nombre: $('nombre').value.trim(),
+    apellido: $('apellido').value.trim(),
+    cedula: $('cedula').value.replace(/\D/g, '')
+  };
+  if (!datos.nombre || !datos.apellido) return msg('Completa nombre y apellido.', 'err');
+  if (datos.cedula.length < 5) return msg('Revisa tu cédula.', 'err');
+
+  $('enviar').disabled = true; msg('Enviando…');
+  try {
+    const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(datos) });
+    const d = await r.json();
+    if (d.ok) {
+      try { localStorage.setItem(marca(d.sesion), '1'); } catch (e) {}
+      $('formulario').hidden = true; $('estado').textContent = '';
+      msg('✔ Asistencia registrada. ¡Gracias!', 'ok');
+    } else { msg(d.error || 'No se pudo registrar.', 'err'); $('enviar').disabled = false; }
+  } catch (e) { msg('Error de conexión. Intenta de nuevo.', 'err'); $('enviar').disabled = false; }
+});
+
+cargar();
+</script>
+</body>
+</html>
